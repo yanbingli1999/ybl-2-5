@@ -1,49 +1,54 @@
-# Dependencies
-node_modules/
-
-# Build outputs
-dist/
-build/
-out/
-coverage/
-
-# Environment files
-.env
-.env.*
-!.env.example
-
 # Logs
+logs
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-logs/
+lerna-debug.log*
 
-# Cache and temporary files
-.cache/
-.parcel-cache/
-.turbo/
-.next/cache/
-.vite/
-.eslintcache
-tmp/
-temp/
+node_modules
+dist
+build
+dist-ssr
+*.local
 
-# Large local artifacts
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Cache and generated output
+.cache
+.parcel-cache
+.vite
+.turbo
+.next
+.nuxt
+coverage
+tmp
+temp
+*.tsbuildinfo
+
+# Large archives and binary bundles
 *.zip
 *.tar
 *.tar.gz
 *.tgz
 *.rar
 *.7z
-*.iso
 *.dmg
-*.mp4
-*.mov
-*.avi
-*.mkv
+*.iso
+*.bak
 
-# Local workspace artifacts
-work/
-outputs/
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
