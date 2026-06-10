@@ -7,9 +7,10 @@ const ACCESS_LEVEL_ORDER: Record<GateAccessLevel, number> = {
   staff: 2,
 };
 
-export function canPassGate(gate: CampusGate, playerLevel: GateAccessLevel, isNight: boolean): boolean {
+export function canPassGate(gate: CampusGate, playerLevel: GateAccessLevel | undefined, isNight: boolean): boolean {
+  const level = playerLevel || 'public';
   if (isNight && !gate.nightOpen) return false;
-  return ACCESS_LEVEL_ORDER[playerLevel] >= ACCESS_LEVEL_ORDER[gate.accessLevel];
+  return ACCESS_LEVEL_ORDER[level] >= ACCESS_LEVEL_ORDER[gate.accessLevel];
 }
 
 export function generateMapData(): MapData {
@@ -204,11 +205,11 @@ export function isPositionNearGate(x: number, y: number, gates: CampusGate[], th
   return null;
 }
 
-export function getOpenGates(gates: CampusGate[], playerLevel: GateAccessLevel, isNight: boolean): CampusGate[] {
+export function getOpenGates(gates: CampusGate[], playerLevel: GateAccessLevel | undefined, isNight: boolean): CampusGate[] {
   return gates.filter((g) => canPassGate(g, playerLevel, isNight));
 }
 
-export function getClosedGates(gates: CampusGate[], playerLevel: GateAccessLevel, isNight: boolean): CampusGate[] {
+export function getClosedGates(gates: CampusGate[], playerLevel: GateAccessLevel | undefined, isNight: boolean): CampusGate[] {
   return gates.filter((g) => !canPassGate(g, playerLevel, isNight));
 }
 
@@ -233,7 +234,7 @@ export function getNearestOpenGate(
   x: number,
   y: number,
   gates: CampusGate[],
-  playerLevel: GateAccessLevel,
+  playerLevel: GateAccessLevel | undefined,
   isNight: boolean
 ): CampusGate | null {
   const openGates = getOpenGates(gates, playerLevel, isNight);
@@ -295,7 +296,7 @@ export function findPath(
   campusZones?: CampusZone[],
   campusGates?: CampusGate[],
   isNight?: boolean,
-  playerLevel?: GateAccessLevel
+  playerLevel?: GateAccessLevel | undefined
 ): Array<{ x: number; y: number }> {
   const startCol = Math.floor(startX / gridSize);
   const startRow = Math.floor(startY / gridSize);

@@ -380,15 +380,32 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'LOAD_GAME': {
       const save = action.save;
+      const initial = createInitialState();
       return {
-        ...createInitialState(),
-        player: save.player,
-        vehicle: save.vehicle,
+        ...initial,
+        player: {
+          ...initial.player,
+          ...save.player,
+          gateAccessLevel: save.player.gateAccessLevel || 'public' as const,
+        },
+        vehicle: {
+          ...initial.vehicle,
+          ...save.vehicle,
+        },
         weather: save.weather,
-        orders: save.orders,
+        orders: save.orders.map((o) => ({
+          ...o,
+          isCampus: o.isCampus ?? false,
+          gateAccessHint: o.gateAccessHint ?? '',
+        })),
         incomeRecords: save.incomeRecords,
         gameTime: save.gameTime,
-        map: save.map,
+        map: {
+          ...initial.map,
+          ...save.map,
+          campusZones: save.map.campusZones || initial.map.campusZones,
+          campusGates: save.map.campusGates || initial.map.campusGates,
+        },
       };
     }
 
