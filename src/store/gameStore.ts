@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { GameState, GameAction, GameSave, Order } from '../game/types';
-import { generateMapData, findPath } from '../game/mapData';
+import { generateMapData, findPath, isEnteringCampus, isPositionNearGate, isGateOpen, getNearestOpenGate } from '../game/mapData';
 import { generateOrder, updateOrderDeadlines, isAtLocation, canAcceptOrder } from '../game/OrderSystem';
 import { updateWeather, createInitialWeather } from '../game/WeatherSystem';
 import {
@@ -18,6 +18,8 @@ import {
   PLAYER_START,
   MAX_AVAILABLE_ORDERS,
   ORDER_GENERATION_INTERVAL,
+  GATE_VIOLATION_PENALTY,
+  isNightTime,
 } from '../game/constants';
 
 export function createInitialState(): GameState {
@@ -69,6 +71,45 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
       if (!moved) return state;
 
+      const night = isNightTime(state.gameTime);
+      const prevPos = state.vehicle.position;
+      const newPos = vehicle.position;
+
+      if (night && isEnteringCampus(prevPos.x, prevPos.y, newPos.x, newPos.y, state.map.campusZones)) {
+        const nearGate = isPositionNearGate(newPos.x, newPos.y, state.map.campusGates, 20);
+        if (!nearGate || !isGateOpen(nearGate, night)) {
+          const openGate = getNearestOpenGate(prevPos.x, prevPos.y, state.map.campusGates, night);
+          if (openGate) {
+            const reroutePath = findPath(
+              prevPos.x,
+              prevPos.y,
+              openGate.x,
+              openGate.y,
+              state.map.roads,
+              state.map.gridSize,
+              state.map.campusZones,
+              state.map.campusGates,
+              night
+            );
+            return {
+              ...state,
+              player: {
+                ...state.player,
+                position: prevPos,
+                money: Math.max(0, state.player.money - GATE_VIOLATION_PENALTY),
+              },
+              vehicle: { ...vehicle, position: prevPos, speed: 0 },
+              plannedPath: reroutePath,
+            };
+          }
+          return {
+            ...state,
+            player: { ...state.player, position: prevPos },
+            vehicle: { ...vehicle, position: prevPos, speed: 0 },
+          };
+        }
+      }
+
       const newPlayer = {
         ...state.player,
         position: vehicle.position,
@@ -95,13 +136,17 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const order = state.orders.find((o) => o.id === action.orderId);
       if (!order || !canAcceptOrder(order, state.player)) return state;
 
+      const night = isNightTime(state.gameTime);
       const path = findPath(
         state.vehicle.position.x,
         state.vehicle.position.y,
         order.pickupLocation.x,
         order.pickupLocation.y,
         state.map.roads,
-        state.map.gridSize
+        state.map.gridSize,
+        state.map.campusZones,
+        state.map.campusGates,
+        night
       );
 
       return {
@@ -120,13 +165,17 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
       if (!isAtLocation(state.player.position, order.pickupLocation, 50)) return state;
 
+      const night = isNightTime(state.gameTime);
       const path = findPath(
         state.vehicle.position.x,
         state.vehicle.position.y,
         order.deliveryLocation.x,
         order.deliveryLocation.y,
         state.map.roads,
-        state.map.gridSize
+        state.map.gridSize,
+        state.map.campusZones,
+        state.map.campusGates,
+        night
       );
 
       return {
@@ -330,6 +379,17 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'GAME_OVER': {
       return { ...state, isGameOver: true };
+    }
+
+    case 'GATE_VIOLATION': {
+      return {
+        ...state,
+        player: {
+          ...state.player,
+          money: Math.max(0, state.player.money - action.penalty),
+        },
+        plannedPath: action.reroutePath,
+      };
     }
 
     default:

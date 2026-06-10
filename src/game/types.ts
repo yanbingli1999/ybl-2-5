@@ -40,6 +40,9 @@ export interface Order {
   customerUrgency: number;
   distance: number;
   createdAt: number;
+  isCampus?: boolean;
+  campusZoneId?: string;
+  gateAccessHint?: string;
 }
 
 export type WeatherType = 'sunny' | 'cloudy' | 'rainy' | 'heavy_rain' | 'storm';
@@ -49,6 +52,27 @@ export interface WeatherState {
   intensity: number;
   speedModifier: number;
   nextChangeTime: number;
+}
+
+export type GateAccessLevel = 'public' | 'student' | 'staff';
+
+export interface CampusGate {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  accessLevel: GateAccessLevel;
+  nightOpen: boolean;
+}
+
+export interface CampusZone {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  gateIds: string[];
 }
 
 export interface Road {
@@ -87,6 +111,8 @@ export interface MapData {
   buildings: Building[];
   chargingStations: LocationPoint[];
   repairShops: LocationPoint[];
+  campusZones: CampusZone[];
+  campusGates: CampusGate[];
 }
 
 export interface IncomeRecord {
@@ -150,4 +176,5 @@ export type GameAction =
   | { type: 'CLEAR_PATH' }
   | { type: 'NEW_GAME' }
   | { type: 'LOAD_GAME'; save: GameSave }
-  | { type: 'GAME_OVER' };
+  | { type: 'GAME_OVER' }
+  | { type: 'GATE_VIOLATION'; penalty: number; reroutePath: Position[] };

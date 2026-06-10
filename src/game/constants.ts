@@ -57,11 +57,35 @@ export const WEATHER_CHANGE_INTERVAL = 30000;
 export const STORAGE_KEY = 'city_delivery_game_save';
 export const SAVE_VERSION = '1.0.0';
 
+export const GAME_DAY_SECONDS = 300;
+export const NIGHT_START_HOUR = 22;
+export const NIGHT_END_HOUR = 6;
+export const GATE_VIOLATION_PENALTY = 30;
+
+export function getGameHour(gameTime: number): number {
+  const timeInDay = gameTime % GAME_DAY_SECONDS;
+  return Math.floor((timeInDay / GAME_DAY_SECONDS) * 24);
+}
+
+export function isNightTime(gameTime: number): boolean {
+  const hour = getGameHour(gameTime);
+  return hour >= NIGHT_START_HOUR || hour < NIGHT_END_HOUR;
+}
+
 export const LOCATION_NAMES = [
   '幸福小区', '阳光花园', '城市广场', '中心医院', '科技大厦',
   '购物中心', '美食街', '火车站', '体育馆', '图书馆',
   '公园北门', '商业街', '写字楼A座', '公寓楼', '学校门口',
   '咖啡店', '花店', '超市', '餐厅', '银行',
+];
+
+export const CAMPUS_LOCATION_NAMES = [
+  '大学生宿舍', '图书馆南门', '实验楼', '食堂', '教学楼A',
+  '行政楼', '体育馆', '学生活动中心', '校医院', '研究生楼',
+];
+
+export const CAMPUS_GATE_NAMES = [
+  '东校门', '西校门', '南校门', '北校门', '侧门',
 ];
 
 export const BUILDING_NAMES = [

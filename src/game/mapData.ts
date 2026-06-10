@@ -1,4 +1,4 @@
-import { MapData } from './types';
+import { MapData, CampusGate, CampusZone, Position } from './types';
 import { GRID_SIZE, COLS, ROWS } from './constants';
 
 export function generateMapData(): MapData {
@@ -6,6 +6,8 @@ export function generateMapData(): MapData {
   const buildings = generateBuildings();
   const chargingStations = generateChargingStations();
   const repairShops = generateRepairShops();
+  const campusGates = generateCampusGates();
+  const campusZones = generateCampusZones(campusGates);
 
   return {
     width: COLS * GRID_SIZE,
@@ -15,6 +17,8 @@ export function generateMapData(): MapData {
     buildings,
     chargingStations,
     repairShops,
+    campusZones,
+    campusGates,
   };
 }
 
@@ -147,6 +151,98 @@ function generateRepairShops(): MapData['repairShops'] {
   ];
 }
 
+function generateCampusGates(): CampusGate[] {
+  return [
+    { id: 'gate-east', name: '东校门', x: GRID_SIZE * 20, y: GRID_SIZE * 6, accessLevel: 'public', nightOpen: true },
+    { id: 'gate-west', name: '西校门', x: GRID_SIZE * 8, y: GRID_SIZE * 6, accessLevel: 'public', nightOpen: false },
+    { id: 'gate-south', name: '南校门', x: GRID_SIZE * 12, y: GRID_SIZE * 12, accessLevel: 'student', nightOpen: true },
+    { id: 'gate-north', name: '北校门', x: GRID_SIZE * 16, y: GRID_SIZE * 3, accessLevel: 'staff', nightOpen: false },
+    { id: 'gate-side', name: '侧门', x: GRID_SIZE * 20, y: GRID_SIZE * 9, accessLevel: 'student', nightOpen: true },
+  ];
+}
+
+function generateCampusZones(gates: CampusGate[]): CampusZone[] {
+  return [
+    {
+      id: 'campus-main',
+      name: '中心大学',
+      x: GRID_SIZE * 8,
+      y: GRID_SIZE * 3,
+      width: GRID_SIZE * 12,
+      height: GRID_SIZE * 9,
+      gateIds: gates.map((g) => g.id),
+    },
+  ];
+}
+
+export function isPositionInCampusZone(x: number, y: number, zones: CampusZone[]): CampusZone | null {
+  for (const zone of zones) {
+    if (x >= zone.x && x < zone.x + zone.width && y >= zone.y && y < zone.y + zone.height) {
+      return zone;
+    }
+  }
+  return null;
+}
+
+export function isPositionNearGate(x: number, y: number, gates: CampusGate[], threshold: number = GRID_SIZE): CampusGate | null {
+  for (const gate of gates) {
+    if (Math.hypot(x - gate.x, y - gate.y) < threshold) {
+      return gate;
+    }
+  }
+  return null;
+}
+
+export function getOpenGates(gates: CampusGate[], gameTime: number, isNight: boolean): CampusGate[] {
+  if (!isNight) return gates;
+  return gates.filter((g) => g.nightOpen);
+}
+
+export function getClosedGates(gates: CampusGate[], isNight: boolean): CampusGate[] {
+  if (!isNight) return [];
+  return gates.filter((g) => !g.nightOpen);
+}
+
+export function isGateOpen(gate: CampusGate, isNight: boolean): boolean {
+  if (!isNight) return true;
+  return gate.nightOpen;
+}
+
+export function isEnteringCampus(
+  prevX: number,
+  prevY: number,
+  newX: number,
+  newY: number,
+  zones: CampusZone[]
+): boolean {
+  const wasInCampus = isPositionInCampusZone(prevX, prevY, zones) !== null;
+  const nowInCampus = isPositionInCampusZone(newX, newY, zones) !== null;
+  return !wasInCampus && nowInCampus;
+}
+
+export function getNearestOpenGate(
+  x: number,
+  y: number,
+  gates: CampusGate[],
+  isNight: boolean
+): CampusGate | null {
+  const openGates = getOpenGates(gates, 0, isNight);
+  if (openGates.length === 0) return null;
+
+  let nearest: CampusGate | null = null;
+  let minDist = Infinity;
+
+  for (const gate of openGates) {
+    const dist = Math.hypot(x - gate.x, y - gate.y);
+    if (dist < minDist) {
+      minDist = dist;
+      nearest = gate;
+    }
+  }
+
+  return nearest;
+}
+
 export function isOnRoad(x: number, y: number, roads: Array<{ x: number; y: number; width: number; height: number }>): boolean {
   for (const road of roads) {
     if (
@@ -185,7 +281,10 @@ export function findPath(
   endX: number,
   endY: number,
   roads: MapData['roads'],
-  gridSize: number
+  gridSize: number,
+  campusZones?: CampusZone[],
+  campusGates?: CampusGate[],
+  isNight?: boolean
 ): Array<{ x: number; y: number }> {
   const startCol = Math.floor(startX / gridSize);
   const startRow = Math.floor(startY / gridSize);
@@ -209,6 +308,31 @@ export function findPath(
   if (!roadGrid.has(`${endCol},${endRow}`)) {
     return [];
   }
+
+  const campusCellSet = new Set<string>();
+  const gateCellSet = new Set<string>();
+  if (campusZones && campusGates && isNight) {
+    for (const zone of campusZones) {
+      const c1 = Math.floor(zone.x / gridSize);
+      const r1 = Math.floor(zone.y / gridSize);
+      const c2 = Math.floor((zone.x + zone.width - 1) / gridSize);
+      const r2 = Math.floor((zone.y + zone.height - 1) / gridSize);
+      for (let r = r1; r <= r2; r++) {
+        for (let c = c1; c <= c2; c++) {
+          campusCellSet.add(`${c},${r}`);
+        }
+      }
+    }
+    for (const gate of campusGates) {
+      if (isGateOpen(gate, isNight)) {
+        const gc = Math.floor(gate.x / gridSize);
+        const gr = Math.floor(gate.y / gridSize);
+        gateCellSet.add(`${gc},${gr}`);
+      }
+    }
+  }
+
+  const startInCampus = campusCellSet.has(`${startCol},${startRow}`);
 
   interface Node {
     col: number;
@@ -272,6 +396,17 @@ export function findPath(
 
       if (!roadGrid.has(key) || closedSet.has(key)) {
         continue;
+      }
+
+      if (isNight && campusCellSet.size > 0) {
+        const newInCampus = campusCellSet.has(key);
+        const currentInCampus = campusCellSet.has(`${current.col},${current.row}`);
+
+        if (newInCampus && !currentInCampus && !startInCampus) {
+          if (!gateCellSet.has(key)) {
+            continue;
+          }
+        }
       }
 
       const g = current.g + 1;

@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useGameStore, selectCurrentOrder } from '../store/gameStore';
-import { GRID_SIZE } from '../game/constants';
+import { GRID_SIZE, isNightTime, getGameHour } from '../game/constants';
 import { getRainParticleCount, isRaining } from '../game/WeatherSystem';
+import { isGateOpen, getNearestOpenGate } from '../game/mapData';
 
 interface RainDrop {
   x: number;
@@ -25,6 +26,7 @@ export default function GameMap() {
   const orders = useGameStore(useShallow((state) => state.orders));
   const currentOrder = useGameStore(useShallow(selectCurrentOrder));
   const isPaused = useGameStore((state) => state.isPaused);
+  const gameTime = useGameStore((state) => state.gameTime);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -51,9 +53,11 @@ export default function GameMap() {
 
       drawBackground(ctx);
       drawRoads(ctx);
+      drawCampusZones(ctx);
       drawBuildings(ctx);
       drawChargingStations(ctx);
       drawRepairShops(ctx);
+      drawCampusGates(ctx);
       drawOrderLocations(ctx);
       drawPlannedPath(ctx);
       drawVehicle(ctx);
@@ -137,6 +141,120 @@ export default function GameMap() {
           }
         }
       });
+    };
+
+    const drawCampusZones = (ctx: CanvasRenderingContext2D) => {
+      const night = isNightTime(gameTime);
+
+      map.campusZones.forEach((zone) => {
+        if (night) {
+          ctx.fillStyle = 'rgba(80, 20, 20, 0.25)';
+        } else {
+          ctx.fillStyle = 'rgba(20, 60, 80, 0.15)';
+        }
+        ctx.fillRect(zone.x, zone.y, zone.width, zone.height);
+
+        if (night) {
+          ctx.strokeStyle = 'rgba(255, 71, 87, 0.5)';
+          ctx.lineWidth = 3;
+          ctx.setLineDash([10, 6]);
+          ctx.strokeRect(zone.x, zone.y, zone.width, zone.height);
+          ctx.setLineDash([]);
+        } else {
+          ctx.strokeStyle = 'rgba(0, 200, 255, 0.3)';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(zone.x, zone.y, zone.width, zone.height);
+        }
+
+        ctx.fillStyle = night ? 'rgba(255, 71, 87, 0.9)' : 'rgba(0, 200, 255, 0.7)';
+        ctx.font = 'bold 14px VT323';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(night ? `🌙 ${zone.name} [夜间管制]` : `🏫 ${zone.name}`, zone.x + zone.width / 2, zone.y + 4);
+
+        if (night) {
+          const stripes = Math.floor(zone.width / 30);
+          for (let i = 0; i < stripes; i++) {
+            const sx = zone.x + i * 30;
+            ctx.beginPath();
+            ctx.moveTo(sx, zone.y + zone.height);
+            ctx.lineTo(sx + 15, zone.y + zone.height - 8);
+            ctx.strokeStyle = 'rgba(255, 71, 87, 0.2)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          }
+        }
+      });
+    };
+
+    const drawCampusGates = (ctx: CanvasRenderingContext2D) => {
+      const night = isNightTime(gameTime);
+      const playerPos = player.position;
+
+      map.campusGates.forEach((gate) => {
+        const open = isGateOpen(gate, night);
+        const pulse = Math.sin(timeRef.current * (open ? 2 : 0.8)) * 0.5 + 0.5;
+
+        ctx.beginPath();
+        ctx.arc(gate.x, gate.y, GRID_SIZE * 0.6, 0, Math.PI * 2);
+        if (open) {
+          ctx.fillStyle = `rgba(46, 213, 115, ${0.15 + pulse * 0.15})`;
+        } else {
+          ctx.fillStyle = `rgba(255, 71, 87, ${0.15 + pulse * 0.1})`;
+        }
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(gate.x, gate.y, 14, 0, Math.PI * 2);
+        ctx.fillStyle = open ? '#2ed573' : '#ff4757';
+        ctx.fill();
+        ctx.strokeStyle = open ? '#2ed573' : '#ff4757';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = '#0a1628';
+        ctx.font = 'bold 12px VT323';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(open ? '🚪' : '🔒', gate.x, gate.y);
+
+        ctx.fillStyle = open ? '#2ed573' : '#ff4757';
+        ctx.font = '10px VT323';
+        ctx.fillText(gate.name, gate.x, gate.y - 24);
+
+        if (open && night) {
+          ctx.fillStyle = '#2ed573';
+          ctx.font = '9px VT323';
+          ctx.fillText('✓可通行', gate.x, gate.y + 22);
+        }
+        if (!open && night) {
+          ctx.fillStyle = '#ff4757';
+          ctx.font = '9px VT323';
+          ctx.fillText('✗禁行', gate.x, gate.y + 22);
+        }
+      });
+
+      if (night) {
+        const nearestOpen = getNearestOpenGate(playerPos.x, playerPos.y, map.campusGates, night);
+        if (nearestOpen) {
+          const dist = Math.hypot(playerPos.x - nearestOpen.x, playerPos.y - nearestOpen.y);
+          if (dist < GRID_SIZE * 8) {
+            const pulse2 = Math.sin(timeRef.current * 3) * 0.5 + 0.5;
+            ctx.beginPath();
+            ctx.arc(nearestOpen.x, nearestOpen.y, 22 + pulse2 * 8, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(46, 213, 115, ${0.4 + pulse2 * 0.3})`;
+            ctx.lineWidth = 3;
+            ctx.setLineDash([6, 4]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.fillStyle = '#2ed573';
+            ctx.font = 'bold 10px VT323';
+            ctx.textAlign = 'center';
+            ctx.fillText('推荐入口', nearestOpen.x, nearestOpen.y + 36);
+          }
+        }
+      }
     };
 
     const drawChargingStations = (ctx: CanvasRenderingContext2D) => {
@@ -424,7 +542,7 @@ export default function GameMap() {
     return () => {
       cancelAnimationFrame(animationRef.current);
     };
-  }, [map, player, vehicle, weather, plannedPath, orders, currentOrder]);
+  }, [map, player, vehicle, weather, plannedPath, orders, currentOrder, gameTime]);
 
   return (
     <div className="relative">

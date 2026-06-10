@@ -1,8 +1,8 @@
 import { useShallow } from 'zustand/react/shallow';
 import { useGameStore } from '../store/gameStore';
-import { WEATHER_NAMES, WEATHER_COLORS } from '../game/constants';
+import { WEATHER_NAMES, WEATHER_COLORS, isNightTime, getGameHour } from '../game/constants';
 import { calculateTotalRating, formatMoney } from '../game/EconomySystem';
-import { Zap, Heart, Wrench, DollarSign, Cloud, Clock, Star } from 'lucide-react';
+import { Zap, Heart, Wrench, DollarSign, Cloud, Clock, Star, Moon, Sun } from 'lucide-react';
 
 export default function StatusPanel() {
   const player = useGameStore((state) => state.player);
@@ -15,10 +15,17 @@ export default function StatusPanel() {
   const isResting = useGameStore((state) => state.isResting);
 
   const avgRating = calculateTotalRating(incomeRecords);
+  const night = isNightTime(gameTime);
+  const gameHour = getGameHour(gameTime);
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const formatGameHour = (hour: number) => {
+    return `${hour.toString().padStart(2, '0')}:00`;
   };
 
   const getProgressClass = (value: number) => {
@@ -115,9 +122,25 @@ export default function StatusPanel() {
         </div>
 
         <div className="flex items-center justify-between">
-          <Clock size={14} className="text-gray-400" />
-          <span className="font-retro text-sm text-gray-300">{formatTime(gameTime)}</span>
+          <div className="flex items-center gap-2">
+            {night ? <Moon size={14} className="text-blue-400" /> : <Sun size={14} className="text-yellow-400" />}
+            <span className={`font-retro text-sm ${night ? 'text-blue-400' : 'text-yellow-400'}`}>
+              {formatGameHour(gameHour)} {night ? '夜间' : '白天'}
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Clock size={14} className="text-gray-400" />
+            <span className="font-retro text-xs text-gray-400">{formatTime(gameTime)}</span>
+          </div>
         </div>
+
+        {night && (
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded px-2 py-1">
+            <span className="font-retro text-[10px] text-blue-300">
+              🌙 夜间管制：部分校门已关闭，注意门禁提示
+            </span>
+          </div>
+        )}
 
         <div className="flex items-center justify-between">
           <Star size={14} className="text-game-streetLight" />

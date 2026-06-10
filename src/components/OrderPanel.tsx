@@ -2,7 +2,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useGameStore, selectCurrentOrder, selectAvailableOrders } from '../store/gameStore';
 import { getOrderStatusText, getUrgencyText } from '../game/OrderSystem';
 import { formatMoney } from '../game/EconomySystem';
-import { Package, MapPin, Clock, AlertTriangle, Check } from 'lucide-react';
+import { Package, MapPin, Clock, AlertTriangle, Check, Shield } from 'lucide-react';
 
 export default function OrderPanel() {
   const dispatch = useGameStore((state) => state.dispatch);
@@ -84,6 +84,15 @@ export default function OrderPanel() {
               </div>
             )}
 
+            {currentOrder.isCampus && currentOrder.gateAccessHint && (
+              <div className="flex items-center gap-1 bg-purple-500/20 border border-purple-500/30 rounded px-2 py-1">
+                <Shield size={12} className="text-purple-400" />
+                <span className="font-retro text-xs text-purple-300">
+                  🏫校园单 · {currentOrder.gateAccessHint}
+                </span>
+              </div>
+            )}
+
             <div className="text-xs font-retro text-gray-400 mt-2 p-2 bg-game-night/70 rounded border border-game-neon/30">
               {currentOrder.status === 'accepted' && '🎯 第一步：沿青色虚线路径开到绿色标记的取货点'}
               {currentOrder.status === 'pickedup' && '🎯 第二步：沿青色虚线路径开到红色标记的送货点'}
@@ -108,11 +117,14 @@ export default function OrderPanel() {
           availableOrders.map((order) => (
             <div
               key={order.id}
-              className="bg-game-night/50 border border-gray-700 rounded p-3 hover:border-game-neon/50 transition-all space-y-2"
+              className={`bg-game-night/50 border rounded p-3 hover:border-game-neon/50 transition-all space-y-2 ${
+                order.isCampus ? 'border-purple-500/40' : 'border-gray-700'
+              }`}
             >
               <div className="flex justify-between items-start">
                 <div>
                   <div className="font-retro text-xs text-gray-400">
+                    {order.isCampus && <span className="text-purple-400">🏫</span>}
                     {order.pickupLocation.name} → {order.deliveryLocation.name}
                   </div>
                   <div className="font-retro text-lg text-game-streetLight">{formatMoney(order.reward)}</div>
@@ -121,6 +133,13 @@ export default function OrderPanel() {
                   ⏱ {formatDeadline(order.deadline)}
                 </span>
               </div>
+
+              {order.isCampus && order.gateAccessHint && (
+                <div className="flex items-center gap-1 bg-purple-500/15 border border-purple-500/20 rounded px-2 py-1">
+                  <Shield size={10} className="text-purple-400" />
+                  <span className="font-retro text-[10px] text-purple-300">{order.gateAccessHint}</span>
+                </div>
+              )}
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3 text-xs font-retro text-gray-400">
