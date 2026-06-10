@@ -13,6 +13,7 @@ export interface PlayerState {
   currentOrderId: string | null;
   completedOrders: number;
   totalRating: number;
+  gateAccessLevel: GateAccessLevel;
 }
 
 export interface VehicleState {

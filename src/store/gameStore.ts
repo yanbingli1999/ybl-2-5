@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { GameState, GameAction, GameSave, Order } from '../game/types';
-import { generateMapData, findPath, isEnteringCampus, isPositionNearGate, isGateOpen, getNearestOpenGate } from '../game/mapData';
+import { generateMapData, findPath, isEnteringCampus, isPositionNearGate, canPassGate, getNearestOpenGate } from '../game/mapData';
 import { generateOrder, updateOrderDeadlines, isAtLocation, canAcceptOrder } from '../game/OrderSystem';
 import { updateWeather, createInitialWeather } from '../game/WeatherSystem';
 import {
@@ -35,6 +35,7 @@ export function createInitialState(): GameState {
       currentOrderId: null,
       completedOrders: 0,
       totalRating: 0,
+      gateAccessLevel: 'public' as const,
     },
     vehicle: createInitialVehicle(),
     weather: createInitialWeather(),
@@ -74,11 +75,12 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const night = isNightTime(state.gameTime);
       const prevPos = state.vehicle.position;
       const newPos = vehicle.position;
+      const playerLevel = state.player.gateAccessLevel;
 
       if (night && isEnteringCampus(prevPos.x, prevPos.y, newPos.x, newPos.y, state.map.campusZones)) {
         const nearGate = isPositionNearGate(newPos.x, newPos.y, state.map.campusGates, 20);
-        if (!nearGate || !isGateOpen(nearGate, night)) {
-          const openGate = getNearestOpenGate(prevPos.x, prevPos.y, state.map.campusGates, night);
+        if (!nearGate || !canPassGate(nearGate, playerLevel, night)) {
+          const openGate = getNearestOpenGate(prevPos.x, prevPos.y, state.map.campusGates, playerLevel, night);
           if (openGate) {
             const reroutePath = findPath(
               prevPos.x,
@@ -89,7 +91,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
               state.map.gridSize,
               state.map.campusZones,
               state.map.campusGates,
-              night
+              night,
+              playerLevel
             );
             return {
               ...state,
@@ -146,7 +149,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         state.map.gridSize,
         state.map.campusZones,
         state.map.campusGates,
-        night
+        night,
+        state.player.gateAccessLevel
       );
 
       return {
@@ -175,7 +179,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         state.map.gridSize,
         state.map.campusZones,
         state.map.campusGates,
-        night
+        night,
+        state.player.gateAccessLevel
       );
 
       return {
@@ -195,6 +200,15 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
       const settlement = calculateSettlement(order, state.player.stamina);
 
+      let newGateAccessLevel = state.player.gateAccessLevel;
+      if (order.isCampus) {
+        if (state.player.completedOrders + 1 >= 8 && newGateAccessLevel === 'student') {
+          newGateAccessLevel = 'staff';
+        } else if (state.player.completedOrders + 1 >= 3 && newGateAccessLevel === 'public') {
+          newGateAccessLevel = 'student';
+        }
+      }
+
       return {
         ...state,
         orders: state.orders.map((o) =>
@@ -206,6 +220,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           currentOrderId: null,
           completedOrders: state.player.completedOrders + 1,
           totalRating: state.player.totalRating + settlement.rating,
+          gateAccessLevel: newGateAccessLevel,
         },
         incomeRecords: [...state.incomeRecords, settlement.record],
         showSettlement: true,

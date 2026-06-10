@@ -1,4 +1,4 @@
-import { Order, MapData, Position, CampusZone, CampusGate } from './types';
+import { Order, MapData, Position, CampusZone, CampusGate, GateAccessLevel } from './types';
 import {
   MIN_ORDER_REWARD,
   MAX_ORDER_REWARD,
@@ -9,7 +9,7 @@ import {
   GRID_SIZE,
   isNightTime,
 } from './constants';
-import { getNearestRoadPosition, isPositionInCampusZone, getOpenGates, isGateOpen } from './mapData';
+import { getNearestRoadPosition, isPositionInCampusZone, getOpenGates, isGateOpen, canPassGate } from './mapData';
 
 export function generateOrder(
   map: MapData,
@@ -115,13 +115,30 @@ function generateCampusOrder(
     name: campusNames[Math.floor(Math.random() * campusNames.length)],
   };
 
-  const openGates = getOpenGates(map.campusGates, gameTime, isNight);
+  const levelLabel: Record<GateAccessLevel, string> = {
+    public: '公共',
+    student: '学生证',
+    staff: '员工证',
+  };
+
+  const openGates = getOpenGates(map.campusGates, 'public', isNight);
+  const studentGates = map.campusGates.filter((g) => g.accessLevel === 'student');
+  const staffGates = map.campusGates.filter((g) => g.accessLevel === 'staff');
+
   let gateAccessHint = '';
   if (isNight) {
-    const gateNames = openGates.map((g) => g.name).join('、');
-    gateAccessHint = `🌙夜间仅 ${gateNames} 可通行`;
+    const nightOpenGates = map.campusGates.filter((g) => g.nightOpen);
+    const nightGateInfo = nightOpenGates.map((g) => `${g.name}(${levelLabel[g.accessLevel]})`).join('、');
+    gateAccessHint = `🌙夜间开放: ${nightGateInfo}`;
+    const nightClosed = map.campusGates.filter((g) => !g.nightOpen);
+    if (nightClosed.length > 0) {
+      gateAccessHint += ` | 关闭: ${nightClosed.map((g) => g.name).join('、')}`;
+    }
   } else {
-    gateAccessHint = '☀️所有校门均可通行';
+    const publicGateNames = map.campusGates.filter((g) => g.accessLevel === 'public').map((g) => g.name).join('、');
+    const studentGateNames = studentGates.length > 0 ? studentGates.map((g) => g.name).join('、') : '无';
+    const staffGateNames = staffGates.length > 0 ? staffGates.map((g) => g.name).join('、') : '无';
+    gateAccessHint = `☀️公共:${publicGateNames} 学生证:${studentGateNames} 员工证:${staffGateNames}`;
   }
 
   const distance = Math.floor(

@@ -2,7 +2,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useGameStore } from '../store/gameStore';
 import { WEATHER_NAMES, WEATHER_COLORS, isNightTime, getGameHour } from '../game/constants';
 import { calculateTotalRating, formatMoney } from '../game/EconomySystem';
-import { Zap, Heart, Wrench, DollarSign, Cloud, Clock, Star, Moon, Sun } from 'lucide-react';
+import { Zap, Heart, Wrench, DollarSign, Cloud, Clock, Star, Moon, Sun, Shield } from 'lucide-react';
 
 export default function StatusPanel() {
   const player = useGameStore((state) => state.player);
@@ -138,6 +138,33 @@ export default function StatusPanel() {
           <div className="bg-blue-500/10 border border-blue-500/30 rounded px-2 py-1">
             <span className="font-retro text-[10px] text-blue-300">
               🌙 夜间管制：部分校门已关闭，注意门禁提示
+            </span>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <Shield size={14} className="text-purple-400" />
+            <span className="font-retro text-sm text-gray-400">门禁等级</span>
+          </div>
+          <span className={`font-retro text-sm ${
+            player.gateAccessLevel === 'staff' ? 'text-red-400' :
+            player.gateAccessLevel === 'student' ? 'text-yellow-400' :
+            'text-green-400'
+          }`}>
+            {player.gateAccessLevel === 'public' ? '🟢 公共' :
+             player.gateAccessLevel === 'student' ? '🟡 学生证' :
+             '🔴 员工证'}
+          </span>
+        </div>
+
+        {player.gateAccessLevel !== 'staff' && (
+          <div className="bg-purple-500/10 border border-purple-500/20 rounded px-2 py-1">
+            <span className="font-retro text-[10px] text-purple-300">
+              {player.gateAccessLevel === 'public'
+                ? '💡 完成校园单3次可升级为学生证'
+                : '💡 完成校园单8次可升级为员工证'}
+              ({player.completedOrders}单)
             </span>
           </div>
         )}

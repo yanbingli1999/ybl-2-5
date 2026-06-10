@@ -1,5 +1,16 @@
-import { MapData, CampusGate, CampusZone, Position } from './types';
+import { MapData, CampusGate, CampusZone, Position, GateAccessLevel } from './types';
 import { GRID_SIZE, COLS, ROWS } from './constants';
+
+const ACCESS_LEVEL_ORDER: Record<GateAccessLevel, number> = {
+  public: 0,
+  student: 1,
+  staff: 2,
+};
+
+export function canPassGate(gate: CampusGate, playerLevel: GateAccessLevel, isNight: boolean): boolean {
+  if (isNight && !gate.nightOpen) return false;
+  return ACCESS_LEVEL_ORDER[playerLevel] >= ACCESS_LEVEL_ORDER[gate.accessLevel];
+}
 
 export function generateMapData(): MapData {
   const roads = generateRoads();
@@ -193,14 +204,12 @@ export function isPositionNearGate(x: number, y: number, gates: CampusGate[], th
   return null;
 }
 
-export function getOpenGates(gates: CampusGate[], gameTime: number, isNight: boolean): CampusGate[] {
-  if (!isNight) return gates;
-  return gates.filter((g) => g.nightOpen);
+export function getOpenGates(gates: CampusGate[], playerLevel: GateAccessLevel, isNight: boolean): CampusGate[] {
+  return gates.filter((g) => canPassGate(g, playerLevel, isNight));
 }
 
-export function getClosedGates(gates: CampusGate[], isNight: boolean): CampusGate[] {
-  if (!isNight) return [];
-  return gates.filter((g) => !g.nightOpen);
+export function getClosedGates(gates: CampusGate[], playerLevel: GateAccessLevel, isNight: boolean): CampusGate[] {
+  return gates.filter((g) => !canPassGate(g, playerLevel, isNight));
 }
 
 export function isGateOpen(gate: CampusGate, isNight: boolean): boolean {
@@ -224,9 +233,10 @@ export function getNearestOpenGate(
   x: number,
   y: number,
   gates: CampusGate[],
+  playerLevel: GateAccessLevel,
   isNight: boolean
 ): CampusGate | null {
-  const openGates = getOpenGates(gates, 0, isNight);
+  const openGates = getOpenGates(gates, playerLevel, isNight);
   if (openGates.length === 0) return null;
 
   let nearest: CampusGate | null = null;
@@ -284,7 +294,8 @@ export function findPath(
   gridSize: number,
   campusZones?: CampusZone[],
   campusGates?: CampusGate[],
-  isNight?: boolean
+  isNight?: boolean,
+  playerLevel?: GateAccessLevel
 ): Array<{ x: number; y: number }> {
   const startCol = Math.floor(startX / gridSize);
   const startRow = Math.floor(startY / gridSize);
@@ -323,8 +334,9 @@ export function findPath(
         }
       }
     }
+    const level = playerLevel || 'public';
     for (const gate of campusGates) {
-      if (isGateOpen(gate, isNight)) {
+      if (canPassGate(gate, level, isNight)) {
         const gc = Math.floor(gate.x / gridSize);
         const gr = Math.floor(gate.y / gridSize);
         gateCellSet.add(`${gc},${gr}`);

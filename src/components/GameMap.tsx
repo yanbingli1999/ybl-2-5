@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useGameStore, selectCurrentOrder } from '../store/gameStore';
 import { GRID_SIZE, isNightTime, getGameHour } from '../game/constants';
 import { getRainParticleCount, isRaining } from '../game/WeatherSystem';
-import { isGateOpen, getNearestOpenGate } from '../game/mapData';
+import { isGateOpen, canPassGate, getNearestOpenGate } from '../game/mapData';
 
 interface RainDrop {
   x: number;
@@ -190,14 +190,28 @@ export default function GameMap() {
     const drawCampusGates = (ctx: CanvasRenderingContext2D) => {
       const night = isNightTime(gameTime);
       const playerPos = player.position;
+      const playerLevel = player.gateAccessLevel;
+
+      const levelIcon: Record<string, string> = {
+        public: '🟢',
+        student: '🟡',
+        staff: '🔴',
+      };
+      const levelLabel: Record<string, string> = {
+        public: '公共',
+        student: '学生',
+        staff: '员工',
+      };
 
       map.campusGates.forEach((gate) => {
-        const open = isGateOpen(gate, night);
-        const pulse = Math.sin(timeRef.current * (open ? 2 : 0.8)) * 0.5 + 0.5;
+        const passable = canPassGate(gate, playerLevel, night);
+        const nightClosed = night && !gate.nightOpen;
+        const levelOk = playerLevel === 'staff' || (playerLevel === 'student' && gate.accessLevel !== 'staff') || (playerLevel === 'public' && gate.accessLevel === 'public');
+        const pulse = Math.sin(timeRef.current * (passable ? 2 : 0.8)) * 0.5 + 0.5;
 
         ctx.beginPath();
         ctx.arc(gate.x, gate.y, GRID_SIZE * 0.6, 0, Math.PI * 2);
-        if (open) {
+        if (passable) {
           ctx.fillStyle = `rgba(46, 213, 115, ${0.15 + pulse * 0.15})`;
         } else {
           ctx.fillStyle = `rgba(255, 71, 87, ${0.15 + pulse * 0.1})`;
@@ -206,9 +220,9 @@ export default function GameMap() {
 
         ctx.beginPath();
         ctx.arc(gate.x, gate.y, 14, 0, Math.PI * 2);
-        ctx.fillStyle = open ? '#2ed573' : '#ff4757';
+        ctx.fillStyle = passable ? '#2ed573' : '#ff4757';
         ctx.fill();
-        ctx.strokeStyle = open ? '#2ed573' : '#ff4757';
+        ctx.strokeStyle = passable ? '#2ed573' : '#ff4757';
         ctx.lineWidth = 2;
         ctx.stroke();
 
@@ -216,26 +230,33 @@ export default function GameMap() {
         ctx.font = 'bold 12px VT323';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(open ? '🚪' : '🔒', gate.x, gate.y);
+        ctx.fillText(passable ? '🚪' : '🔒', gate.x, gate.y);
 
-        ctx.fillStyle = open ? '#2ed573' : '#ff4757';
+        ctx.fillStyle = passable ? '#2ed573' : '#ff4757';
         ctx.font = '10px VT323';
-        ctx.fillText(gate.name, gate.x, gate.y - 24);
+        ctx.fillText(gate.name, gate.x, gate.y - 30);
 
-        if (open && night) {
+        ctx.fillStyle = night && !levelOk ? '#ff6348' : (levelOk ? '#ffa502' : '#ff4757');
+        ctx.font = '9px VT323';
+        ctx.fillText(`${levelIcon[gate.accessLevel]}${levelLabel[gate.accessLevel]}`, gate.x, gate.y - 20);
+
+        if (nightClosed) {
+          ctx.fillStyle = '#ff4757';
+          ctx.font = '9px VT323';
+          ctx.fillText('✗夜间关闭', gate.x, gate.y + 22);
+        } else if (!levelOk) {
+          ctx.fillStyle = '#ff6348';
+          ctx.font = '9px VT323';
+          ctx.fillText('⚠等级不足', gate.x, gate.y + 22);
+        } else if (night) {
           ctx.fillStyle = '#2ed573';
           ctx.font = '9px VT323';
           ctx.fillText('✓可通行', gate.x, gate.y + 22);
         }
-        if (!open && night) {
-          ctx.fillStyle = '#ff4757';
-          ctx.font = '9px VT323';
-          ctx.fillText('✗禁行', gate.x, gate.y + 22);
-        }
       });
 
       if (night) {
-        const nearestOpen = getNearestOpenGate(playerPos.x, playerPos.y, map.campusGates, night);
+        const nearestOpen = getNearestOpenGate(playerPos.x, playerPos.y, map.campusGates, playerLevel, night);
         if (nearestOpen) {
           const dist = Math.hypot(playerPos.x - nearestOpen.x, playerPos.y - nearestOpen.y);
           if (dist < GRID_SIZE * 8) {
